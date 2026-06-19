@@ -302,6 +302,14 @@ class LinuxDoBrowser:
             logger.info(f"等待 {wait_time:.2f} 秒...")
             time.sleep(wait_time)
 
+    def clear_session_cookies(self):
+        """清理失败 Cookie，避免污染账号密码登录回退流程。"""
+        try:
+            self.session.cookies.clear()
+            logger.info("已清理 Session Cookie，准备回退账号密码登录")
+        except Exception as e:
+            logger.warning(f"清理 Session Cookie 失败: {str(e)}")
+
     def run(self):
         try:
             # 优先使用手动 Cookie 登录，没有再使用账号密码
@@ -309,20 +317,23 @@ class LinuxDoBrowser:
                 login_res = self.login_with_cookies(COOKIES)
                 if not login_res:
                     logger.warning("Cookie 登录失败，尝试账号密码登录...")
+                    self.clear_session_cookies()
                     login_res = self.login()
             else:
                 login_res = self.login()
             if not login_res:  # 登录
-                logger.warning("登录验证失败")
+                logger.error("登录验证失败，程序终止")
+                return False
 
             if BROWSE_ENABLED:
                 click_topic_res = self.click_topic()  # 点击主题
                 if not click_topic_res:
                     logger.error("点击主题失败，程序终止")
-                    return
+                    return False
                 logger.info("完成浏览任务")
             self.print_connect_info()  # 打印连接信息
             self.send_notifications(BROWSE_ENABLED)  # 发送通知
+            return True
         finally:
             try:
                 self.page.close()
@@ -385,4 +396,4 @@ if __name__ == "__main__":
         print("请设置 LINUXDO_COOKIES（Cookie 登录），或同时设置 USERNAME 和 PASSWORD（账号密码登录）")
         exit(1)
     browser = LinuxDoBrowser()
-    browser.run()
+    exit(0 if browser.run() else 1)
